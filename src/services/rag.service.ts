@@ -200,12 +200,12 @@ export class RagService implements OnModuleInit {
         return [];
       }
 
-      // Calculate cosine similarity with all chunks
+      // Calculate similarity with all chunks using dot product
       const results = this.documentChunks
         .map(chunk => ({
           content: chunk.content,
           metadata: chunk.metadata,
-          similarity: this.calculateCosineSimilarity(queryVector, chunk.embedding)
+          similarity: this.calculateSimilarity(queryVector, chunk.embedding)
         }))
         .filter(result => result.similarity > 0.3) // Only return relevant results
         .sort((a, b) => b.similarity - a.similarity)
@@ -218,29 +218,18 @@ export class RagService implements OnModuleInit {
     }
   }
 
-  private calculateCosineSimilarity(vectorA: number[], vectorB: number[]): number {
+  private calculateSimilarity(vectorA: number[], vectorB: number[]): number {
     if (vectorA.length !== vectorB.length) {
       return 0;
     }
 
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
+    // Simple dot product similarity (more efficient than cosine)
+    let similarity = 0;
     for (let i = 0; i < vectorA.length; i++) {
-      dotProduct += vectorA[i] * vectorB[i];
-      normA += vectorA[i] * vectorA[i];
-      normB += vectorB[i] * vectorB[i];
+      similarity += vectorA[i] * vectorB[i];
     }
-
-    normA = Math.sqrt(normA);
-    normB = Math.sqrt(normB);
-
-    if (normA === 0 || normB === 0) {
-      return 0;
-    }
-
-    return dotProduct / (normA * normB);
+    
+    return similarity;
   }
 
   async getRelevantContext(query: string, maxChunks: number = 3): Promise<string> {
