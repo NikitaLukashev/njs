@@ -102,7 +102,12 @@ export class LlmRagService {
       return `Question: ${question}\n\nPlease answer this question based on your general knowledge.`;
     }
 
-    return `Context Information:\n${context}\n\nQuestion: ${question}\n\nPlease answer this question based on the provided context. If the context doesn't contain enough information to fully answer the question, use the context but also mention what additional information might be helpful.`;
+    return `Context:\n${context}\n\n
+    Please answer this question based on the provided context:\n ${question}\n\n 
+    Use the context but also mention what additional information might be helpful.
+    Answer brievly and shortly in less than 100 words.
+    If you are not sure about the answer, say so.
+    `;
   }
 
   private extractSources(context: string): string[] {

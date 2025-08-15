@@ -234,6 +234,7 @@ export class RagService implements OnModuleInit {
 
   async getRelevantContext(query: string, maxChunks: number = 3): Promise<string> {
     const similarChunks = await this.searchSimilarChunks(query, maxChunks);
+    console.log(similarChunks)
     
     if (similarChunks.length === 0) {
       return '';
