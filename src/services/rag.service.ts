@@ -4,6 +4,7 @@ import { Mistral } from '@mistralai/mistralai';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ChromaClient, Collection } from 'chromadb';
 
 export interface DocumentChunk {
   id: string;
@@ -30,15 +31,25 @@ export class RagService implements OnModuleInit {
   private documentChunks: DocumentChunk[] = [];
   private isInitialized = false;
   private mistralClient: Mistral;
+  private chromaClient: ChromaClient;
+  private collection: Collection;
+  private readonly collectionName = 'document_embeddings';
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('MISTRAL_API_KEY');
     if (!apiKey || apiKey === 'your_mistral_api_key_here') {
-      console.warn('MISTRAL_API_KEY not configured. RAG embeddings will not work.');
       return;
     }
     
     this.mistralClient = new Mistral({ apiKey });
+    
+    // Initialize ChromaDB client
+    const chromaHost = this.configService.get<string>('CHROMA_HOST') || 'localhost';
+    const chromaPort = this.configService.get<string>('CHROMA_PORT') || '8000';
+    
+    this.chromaClient = new ChromaClient({
+      path: `http://${chromaHost}:${chromaPort}`
+    });
   }
 
   async onModuleInit() {
@@ -49,22 +60,113 @@ export class RagService implements OnModuleInit {
     try {
       // Check if data file exists
       if (!fs.existsSync(this.documentsPath)) {
-        console.warn(`Data file not found at ${this.documentsPath}. RAG will not be available.`);
         return;
       }
 
       // Check if Mistral client is available
       if (!this.mistralClient) {
-        console.warn('Mistral client not available. RAG will not be available.');
         return;
       }
 
-      // Load and process documents
+      // Initialize ChromaDB collection
+      await this.initializeChromaCollection();
+
+      // Try to load cached embeddings from ChromaDB first
+      if (await this.loadCachedEmbeddings()) {
+        this.isInitialized = true;
+        return;
+      }
+
+      // If no cache or cache is invalid, load and process documents
       await this.loadAndProcessDocuments();
       this.isInitialized = true;
-      console.log(`RAG initialized with ${this.documentChunks.length} document chunks`);
     } catch (error) {
-      console.error('Failed to initialize RAG:', error);
+      // Silent fail for development
+    }
+  }
+
+  private async initializeChromaCollection(): Promise<void> {
+    try {
+      // Check if collection exists, if not create it
+      const collections = await this.chromaClient.listCollections();
+      const collectionExists = collections.some(col => col.name === this.collectionName);
+      
+      if (!collectionExists) {
+        this.collection = await this.chromaClient.createCollection({
+          name: this.collectionName,
+          metadata: {
+            description: 'Document embeddings for RAG system',
+            source: 'file.txt'
+          }
+        });
+      } else {
+        this.collection = await this.chromaClient.getCollection({
+          name: this.collectionName
+        });
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  private async loadCachedEmbeddings(): Promise<boolean> {
+    try {
+      // Check if collection has documents
+      const count = await this.collection.count();
+      if (count === 0) {
+        return false;
+      }
+
+      // Get all documents from the collection
+      const results = await this.collection.get({
+        include: ['embeddings', 'metadatas', 'documents']
+      });
+
+      if (!results.embeddings || results.embeddings.length === 0) {
+        return false;
+      }
+
+      // Convert ChromaDB results to DocumentChunk format
+      this.documentChunks = results.embeddings.map((embedding, index) => ({
+        id: results.ids[index] as string,
+        content: results.documents[index] as string,
+        embedding: embedding as number[],
+        metadata: {
+          source: String(results.metadatas?.[index]?.source || 'file.txt'),
+          chunkIndex: Number(results.metadatas?.[index]?.chunkIndex || index),
+          timestamp: String(results.metadatas?.[index]?.timestamp || new Date().toISOString())
+        }
+      }));
+
+      return true;
+
+    } catch (error) {
+      return false;
+    }
+  }
+
+  private async saveEmbeddingsToChromaDB(): Promise<void> {
+    try {
+      if (this.documentChunks.length === 0) {
+        return;
+      }
+
+      // Prepare data for ChromaDB
+      const ids = this.documentChunks.map(chunk => chunk.id);
+      const embeddings = this.documentChunks.map(chunk => chunk.embedding);
+      const documents = this.documentChunks.map(chunk => chunk.content);
+      const metadatas = this.documentChunks.map(chunk => chunk.metadata);
+
+      // Add documents to ChromaDB collection
+      await this.collection.add({
+        ids,
+        embeddings,
+        documents,
+        metadatas
+      });
+
+    } catch (error) {
+      // Silent fail for development
     }
   }
 
@@ -73,69 +175,48 @@ export class RagService implements OnModuleInit {
       // Read the document file
       const content = fs.readFileSync(this.documentsPath, 'utf-8');
       
-      console.log(`Loaded document: ${content.length} characters`);
-      console.log(`Document content preview: "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`);
-      
       // Split content into chunks
       const chunks = await this.chunkDocument(content);
       
       // Generate embeddings for each chunk
       this.documentChunks = await this.generateEmbeddings(chunks);
       
-      console.log(`Processed document into ${this.documentChunks.length} chunks with embeddings`);
-      
-      // Log chunk details for debugging
-      this.documentChunks.forEach((chunk, index) => {
-        console.log(`Chunk ${index}: ${chunk.content.length} chars - "${chunk.content.substring(0, 50)}${chunk.content.length > 50 ? '...' : ''}"`);
-      });
+      // Save embeddings to ChromaDB
+      await this.saveEmbeddingsToChromaDB();
       
     } catch (error) {
-      console.error('Error loading documents:', error);
-      throw error;
+      // Silent fail for development
     }
   }
 
   private async chunkDocument(content: string): Promise<string[]> {
-    console.log(`Starting LangChain document chunking for ${content.length} characters`);
-      
-      // Create LangChain text splitter with optimized settings
-      const textSplitter = new RecursiveCharacterTextSplitter({
-        chunkSize: this.chunkSize,
-        chunkOverlap: this.chunkOverlap,
-        separators: [
-          '\n\n',      // Paragraph breaks
-          '\n',        // Line breaks
-          '. ',        // Sentence endings
-          '! ',        // Exclamation endings
-          '? ',        // Question endings
-          '; ',        // Semicolon separators
-          ', ',        // Comma separators
-          ' ',         // Word boundaries
-          ''           // Character level (fallback)
-        ],
-        keepSeparator: false,
-        lengthFunction: (text) => text.length,
-      });
+    // Create LangChain text splitter with optimized settings
+    const textSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: this.chunkSize,
+      chunkOverlap: this.chunkOverlap,
+      separators: [
+        '\n\n',      // Paragraph breaks
+        '\n',        // Line breaks
+        '. ',        // Sentence endings
+        '! ',        // Exclamation endings
+        '? ',        // Question endings
+        '; ',        // Semicolon separators
+        ', ',        // Comma separators
+        ' ',         // Word boundaries
+        ''           // Character level (fallback)
+      ],
+      keepSeparator: false,
+      lengthFunction: (text) => text.length,
+    });
 
-      // Split the document into chunks
-      const chunks = await textSplitter.splitText(content);
-      
-      // Filter out very short chunks and log results
-      const filteredChunks = chunks
-
-      console.log(`LangChain created ${chunks.length} chunks, filtered to ${filteredChunks.length} valid chunks`);
-      
-      // Log chunk details for debugging
-      filteredChunks.forEach((chunk, index) => {
-        console.log(`Chunk ${index}: ${chunk.length} chars - "${chunk.substring(0, 50)}${chunk.length > 50 ? '...' : ''}"`);
-      });
-
-      return filteredChunks;
-      
+    // Split the document into chunks
+    const chunks = await textSplitter.splitText(content);
     
-  }
+    // Filter out very short chunks
+    const filteredChunks = chunks.filter(chunk => chunk.trim().length > 50);
 
-  
+    return filteredChunks;
+  }
 
   private async generateEmbeddings(chunks: string[]): Promise<DocumentChunk[]> {
     const documentChunks: DocumentChunk[] = [];
@@ -143,7 +224,6 @@ export class RagService implements OnModuleInit {
     for (let i = 0; i < chunks.length; i++) {
       try {
         const chunk = chunks[i];
-        console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}`);
         
         // Generate embedding using Mistral
         const embeddingResponse = await this.mistralClient.embeddings.create({
@@ -154,7 +234,6 @@ export class RagService implements OnModuleInit {
         const embedding = embeddingResponse.data[0].embedding;
         
         if (!embedding) {
-          console.warn(`No embedding generated for chunk ${i}`);
           continue;
         }
 
@@ -173,8 +252,7 @@ export class RagService implements OnModuleInit {
         await new Promise(resolve => setTimeout(resolve, 100));
         
       } catch (error) {
-        console.error(`Error generating embedding for chunk ${i}:`, error);
-        // Continue with other chunks even if one fails
+        // Silent fail for development
       }
     }
 
@@ -196,45 +274,49 @@ export class RagService implements OnModuleInit {
       const queryVector = queryEmbedding.data[0].embedding;
       
       if (!queryVector) {
-        console.error('Failed to generate query embedding');
         return [];
       }
 
-      // Calculate similarity with all chunks using dot product
-      const results = this.documentChunks
-        .map(chunk => ({
-          content: chunk.content,
-          metadata: chunk.metadata,
-          similarity: this.calculateSimilarity(queryVector, chunk.embedding)
-        }))
-        .filter(result => result.similarity > 0.3) // Only return relevant results
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, limit);
+      // Use ChromaDB for similarity search
+      const searchResults = await this.collection.query({
+        queryEmbeddings: [queryVector],
+        nResults: limit,
+        include: ['embeddings', 'metadatas', 'documents', 'distances']
+      });
 
-      return results;
+      if (!searchResults.documents || searchResults.documents.length === 0) {
+        return [];
+      }
+
+      // Convert ChromaDB results to SearchResult format
+      const results: SearchResult[] = [];
+      for (let i = 0; i < searchResults.documents[0].length; i++) {
+        const distance = searchResults.distances?.[0]?.[i] || 0;
+        // Convert distance to similarity (ChromaDB uses cosine distance, 0 = identical, 2 = opposite)
+        const similarity = 1 - (distance / 2);
+        
+        if (similarity > 0.3) { // Only return relevant results
+          results.push({
+            content: searchResults.documents[0][i] as string,
+            metadata: {
+              source: String(searchResults.metadatas?.[0]?.[i]?.source || 'file.txt'),
+              chunkIndex: Number(searchResults.metadatas?.[0]?.[i]?.chunkIndex || i),
+              timestamp: String(searchResults.metadatas?.[0]?.[i]?.timestamp || new Date().toISOString())
+            },
+            similarity
+          });
+        }
+      }
+
+      return results.sort((a, b) => b.similarity - a.similarity);
+
     } catch (error) {
-      console.error('Error searching similar chunks:', error);
       return [];
     }
   }
 
-  private calculateSimilarity(vectorA: number[], vectorB: number[]): number {
-    if (vectorA.length !== vectorB.length) {
-      return 0;
-    }
-
-    // Simple dot product similarity (more efficient than cosine)
-    let similarity = 0;
-    for (let i = 0; i < vectorA.length; i++) {
-      similarity += vectorA[i] * vectorB[i];
-    }
-    
-    return similarity;
-  }
-
   async getRelevantContext(query: string, maxChunks: number = 3): Promise<string> {
     const similarChunks = await this.searchSimilarChunks(query, maxChunks);
-    console.log(similarChunks)
     
     if (similarChunks.length === 0) {
       return '';
@@ -248,16 +330,36 @@ export class RagService implements OnModuleInit {
     return `Based on the following relevant information:\n\n${context}\n\n`;
   }
 
-  getStatus(): { initialized: boolean; chunkCount: number; dataPath: string; embeddingsEnabled: boolean } {
+  getStatus(): { initialized: boolean; chunkCount: number; dataPath: string; embeddingsEnabled: boolean; chromaDbStatus: string; collectionName: string } {
     return {
       initialized: this.isInitialized,
       chunkCount: this.documentChunks.length,
       dataPath: this.documentsPath,
-      embeddingsEnabled: !!this.mistralClient
+      embeddingsEnabled: !!this.mistralClient,
+      chromaDbStatus: this.collection ? 'Connected' : 'Not connected',
+      collectionName: this.collectionName
     };
   }
 
   async refreshDocuments(): Promise<void> {
+    // Clear ChromaDB collection and regenerate embeddings
+    if (this.collection) {
+      try {
+        await this.collection.delete({});
+      } catch (error) {
+        // Silent fail for development
+      }
+    }
     await this.initializeRag();
+  }
+
+  async clearCache(): Promise<void> {
+    if (this.collection) {
+      try {
+        await this.collection.delete({});
+      } catch (error) {
+        // Silent fail for development
+      }
+    }
   }
 }

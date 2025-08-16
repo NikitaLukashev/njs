@@ -26,7 +26,7 @@ export class LlmRagService {
   ) {
     const apiKey = this.configService.get<string>('MISTRAL_API_KEY');
     if (!apiKey || apiKey === 'your_mistral_api_key_here') {
-      throw new Error('MISTRAL_API_KEY not configured. LLM RAG service cannot function.');
+      return;
     }
     
     this.mistralClient = new Mistral({ apiKey });
@@ -87,7 +87,6 @@ export class LlmRagService {
       };
 
     } catch (error) {
-      console.error('Error in LLM RAG service:', error);
       return {
         answer: `Error processing your question: ${error.message}`,
         context: '',

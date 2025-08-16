@@ -116,7 +116,6 @@ export class LlmRagController {
         throw error;
       }
       
-      console.error('Error in LLM RAG controller:', error);
       throw new HttpException(
         'Internal server error while processing your question',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -196,7 +195,6 @@ export class LlmRagController {
     try {
       return await this.llmRagService.getServiceStatus();
     } catch (error) {
-      console.error('Error getting service status:', error);
       throw new HttpException(
         'Error getting service status',
         HttpStatus.INTERNAL_SERVER_ERROR

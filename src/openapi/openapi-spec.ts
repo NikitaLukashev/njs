@@ -27,7 +27,6 @@ export function setupSwagger(app: INestApplication) {
     .addTag('LLM RAG', 'AI-powered question answering with RAG capabilities')
     .addTag('Health', 'Service status and health monitoring')
     .addServer('http://localhost:3000', 'Local Development')
-    .addServer('https://your-domain.com', 'Production')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

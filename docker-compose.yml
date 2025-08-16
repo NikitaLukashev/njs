@@ -1,0 +1,47 @@
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nestjs-app-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - MISTRAL_API_URL=${MISTRAL_API_URL}
+      - MISTRAL_MODEL=${MISTRAL_MODEL}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src
+      - ./node_modules:/app/node_modules
+    depends_on:
+      - chromadb
+    restart: unless-stopped
+    networks:
+      - dev-network
+    command: npm run start:dev
+
+volumes:
+  chromadb_data:
+
+networks:
+  dev-network:
+    driver: bridge
