@@ -259,10 +259,7 @@ export class RagService implements OnModuleInit {
     return documentChunks;
   }
 
-  async searchSimilarChunks(query: string, limit: number = 3): Promise<SearchResult[]> {
-    
-    console.log(!this.isInitialized, this.documentChunks.length === 0, query)
-    
+  async searchSimilarChunks(query: string, limit: number = 3): Promise<SearchResult[]> {    
     if (!this.isInitialized || this.documentChunks.length === 0) {
       return [];
     }
