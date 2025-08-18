@@ -18,14 +18,21 @@ export class WhatsAppController {
 
       // Create TwiML response
       const twiml = new twilio.twiml.MessagingResponse();
-
-      const questionRequest = {question: message.Body, maxContextChunks: 10, temperature: 0.5}
-      const tmp = await this.llmRagService.askQuestion(questionRequest)
       
+      const questionRequest = {question: message.Body, maxContextChunks: 10, temperature: 0.5}
+      console.log('Sending question to LLM RAG:', questionRequest);
+      
+      const tmp = await this.llmRagService.askQuestion(questionRequest)
+      console.log('LLM RAG response:', tmp);
+      
+      // Add the AI response to TwiML
       twiml.message(tmp.answer);
 
       // Respond with TwiML
-      res.type('text/xml').send(twiml.toString());
+      const twimlResponse = twiml.toString();
+      console.log('TwiML Response:', twimlResponse);
+      
+      res.type('text/xml').send(twimlResponse);
 
     } catch (error) {
       console.error('Error handling WhatsApp message:', error);

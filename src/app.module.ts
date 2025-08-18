@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { RagService } from './services/rag.service';
 import { LlmRagService } from './services/llm-rag.service';
 import { LlmRagController } from './controllers/llm-rag.controller';
+import { WhatsAppController } from './whatsapp.controller';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { LlmRagController } from './controllers/llm-rag.controller';
       envFilePath: '.env',
     }),
   ],
-  controllers: [AppController, LlmRagController],
+  controllers: [AppController, LlmRagController, WhatsAppController],
   providers: [AppService, RagService, LlmRagService],
 })
 export class AppModule {}

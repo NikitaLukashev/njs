@@ -35,13 +35,13 @@ export class LlmRagService {
   async askQuestion(request: QuestionRequest): Promise<QuestionResponse> {
     try {
       const { question, maxContextChunks = 3, temperature = 0.7 } = request;
-
+      console.log(question, request)
       // Get relevant context from RAG service
       const context = await this.ragService.getRelevantContext(question, maxContextChunks);
-      
+      console.log(context)
       // Get status to check if RAG is available
       const ragStatus = this.ragService.getStatus();
-      
+      console.log(context)
       if (!ragStatus.initialized || ragStatus.chunkCount === 0) {
         return {
           answer: 'Sorry, I cannot answer questions at the moment. The RAG system is not properly initialized.',

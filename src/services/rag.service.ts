@@ -260,10 +260,12 @@ export class RagService implements OnModuleInit {
   }
 
   async searchSimilarChunks(query: string, limit: number = 3): Promise<SearchResult[]> {
+    
+    console.log(!this.isInitialized, this.documentChunks.length === 0, query)
+    
     if (!this.isInitialized || this.documentChunks.length === 0) {
       return [];
     }
-
     try {
       // Generate embedding for the query
       const queryEmbedding = await this.mistralClient.embeddings.create({
@@ -317,7 +319,7 @@ export class RagService implements OnModuleInit {
 
   async getRelevantContext(query: string, maxChunks: number = 3): Promise<string> {
     const similarChunks = await this.searchSimilarChunks(query, maxChunks);
-    
+    console.log('similarChunks', similarChunks, query)
     if (similarChunks.length === 0) {
       return '';
     }
