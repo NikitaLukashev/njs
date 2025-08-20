@@ -60,7 +60,9 @@ export class LlmRagService {
         messages: [
           {
             role: 'system',
-            content: `You are a helpful AI assistant. Answer questions based on the provided context. If the context doesn't contain enough information to answer the question, say so. Be concise but informative.`
+            content: `You are a helpful AI assistant. Answer questions based on the provided context.
+             If the context doesn't contain enough information to answer the question, say so. Be concise but informative.
+             Answer brievly and shortly in less than 100 words.`
           },
           {
             role: 'user',
@@ -104,8 +106,9 @@ export class LlmRagService {
     return `Context:\n${context}\n\n
     Please answer this question based on the provided context:\n ${question}\n\n 
     Use the context but also mention what additional information might be helpful.
-    Answer brievly and shortly in less than 100 words.
+    Answer brievly and shortly in less than 50 words.
     If you are not sure about the answer, say so.
+    Don't detail context, just answer the question.
     `;
   }
 
