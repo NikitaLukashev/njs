@@ -1,6 +1,6 @@
 # NestJS LLM RAG API - Development Setup
 
-A simplified NestJS application that combines Large Language Models (LLM) with Retrieval-Augmented Generation (RAG) capabilities for development purposes.
+A simplified NestJS application that combines Large Language Models (LLM) with Retrieval-Augmented Generation (RAG) to automaticcally answer in whatsapp to Airbnb Guest questions.
 
 ## Features
 
@@ -8,17 +8,11 @@ A simplified NestJS application that combines Large Language Models (LLM) with R
 - **RAG System**: Retrieves relevant context from document embeddings using ChromaDB
 - **Document Processing**: Automatic chunking and embedding generation
 - **Real-time Q&A**: Ask questions and get context-aware answers
-
+- **Whatsapp**: Integration through Twilio to answer on guest whatsapp phone number
 ## Development Setup
 
-### Option 1: Docker Compose (Recommended)
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-2. **Set up environment variables:**
+1. **Set up environment variables:**
    Create a `.env` file in the root directory with:
    ```env
    MISTRAL_API_KEY=your_mistral_api_key_here
@@ -28,42 +22,12 @@ A simplified NestJS application that combines Large Language Models (LLM) with R
    CHROMA_PORT=8000
    ```
 
-3. **Start with Docker Compose:**
+2. **Start with Docker Compose:**
    ```bash
    docker-compose up --build
    ```
 
    This will start both ChromaDB and your NestJS app automatically in containers.
-
-### Option 2: Manual Setup
-
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-2. **Set up environment variables:**
-   Create a `.env` file in the root directory with:
-   ```env
-   MISTRAL_API_KEY=your_mistral_api_key_here
-   MISTRAL_API_URL=https://api.mistral.ai/v1/chat/completions
-   MISTRAL_MODEL=mistral-large-latest
-   CHROMA_HOST=localhost
-   CHROMA_PORT=8000
-   ```
-
-3. **Start ChromaDB (for development):**
-   ```bash
-   # Using Docker (simplest way)
-   docker run -p 8000:8000 chromadb/chroma:latest
-   
-   # Or install and run ChromaDB locally
-   ```
-
-4. **Start the development server:**
-   ```bash
-   npm run start:dev
-   ```
 
 The API will be available at `http://localhost:3000` with Swagger documentation at `http://localhost:3000/api`.
 
@@ -88,7 +52,8 @@ The API will be available at `http://localhost:3000` with Swagger documentation 
 
 - `GET /` - Health check
 - `POST /llm-rag/ask` - Ask questions using LLM + RAG
-- `POST /llm-rag/process-document` - Process and embed documents
+- `GET /llm-rag/status` - Get service status (LLM availability, RAG status, document count)
+- `POST /whatsapp` - Handle WhatsApp messages via Twilio webhook
 
 ## Project Structure
 
@@ -100,10 +65,5 @@ src/
 └── openapi/        # API documentation
 ```
 
-## Notes
-
-- This is a development-only setup
-- ChromaDB is used for local development and testing
-- No production build or deployment configurations included
-- Simplified configuration for faster development iteration
-- Docker Compose setup includes hot reload for both app and ChromaDB
+## Production deployment
+You should configure Twilio and Ngrok api endpoint to forward LLM response to your guest whatsapp phone number.
