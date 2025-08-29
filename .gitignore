@@ -1,4 +1,8 @@
 *.amazonaws.com
+*.jsonl
+
+
+
 
 *.pem
 # Dependencies

@@ -29,6 +29,7 @@
         "class-validator": "^0.14.2",
         "dotenv": "^17.2.1",
         "langchain": "^0.3.30",
+        "mistral": "^0.0.4",
         "reflect-metadata": "^0.1.13",
         "rxjs": "^7.8.1",
         "twilio": "^5.8.0"
