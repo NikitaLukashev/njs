@@ -3,11 +3,16 @@ import { ConfigService } from '@nestjs/config';
 import { Mistral } from '@mistralai/mistralai';
 import * as fs from 'fs';
 
-const configService = new ConfigService();
-const apiKey = configService.get<string>('MISTRAL_API_KEY')||("16CPDv68H5Yu45oifrm4zMKve6a1T9uw");
-const model = configService.get<string>('MISTRAL_MODEL') || ('mistral-large-latest');
-console.log(apiKey);
-const client = new Mistral({apiKey});
+@Injectable()
+export class FinetuningService {
+  private readonly client: Mistral;
+  private readonly model: string;
+
+  constructor(private readonly configService: ConfigService) {
+    const apiKey = this.configService.get<string>('MISTRAL_API_KEY') || '16CPDv68H5Yu45oifrm4zMKve6a1T9uw';
+    this.model = this.configService.get<string>('MISTRAL_MODEL') || 'mistral-large-latest';
+    this.client = new Mistral({ apiKey });
+  }
 
 
 
