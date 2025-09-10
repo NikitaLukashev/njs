@@ -3,6 +3,20 @@ import { ConfigService } from '@nestjs/config';
 import { Mistral } from '@mistralai/mistralai';
 import * as fs from 'fs';
 
+export interface FineTuningJobConfig {
+  trainingFiles: string[];
+  validationFiles?: string[];
+  hyperparameters?: {
+    trainingSteps?: number;
+    learningRate?: number;
+  };
+}
+
+export interface UploadedFile {
+  id: string;
+  fileName: string;
+}
+
 @Injectable()
 export class FinetuningService {
   private readonly client: Mistral;
@@ -14,110 +28,94 @@ export class FinetuningService {
     this.client = new Mistral({ apiKey });
   }
 
-
-
-
-
-// const training_file = fs.readFileSync('../data/ultrachat_chunk_train.jsonl');
-const validation_file = fs.readFileSync('../data/ultrachat_chunk_eval.jsonl');
-
-async function uploadFiles() {
-    /*const training_data = await client.files.upload({
+  async uploadValidationFile(): Promise<string> {
+    try {
+      const validationFile = fs.readFileSync('../data/ultrachat_chunk_eval.jsonl');
+      
+      const validationData = await this.client.files.upload({
         file: {
-            fileName: "training_file.jsonl",
-            content: training_file,
+          fileName: "validation_file.jsonl",
+          content: validationFile,
         }
-    });
-    */
+      });
+      
+      return validationData.id;
+    } catch (error) {
+      throw new Error(`Failed to upload validation file: ${error.message}`);
+    }
+  }
 
-    const validation_data = await client.files.upload({
+  async uploadTrainingFile(): Promise<string> {
+    try {
+      const trainingFile = fs.readFileSync('../data/ultrachat_chunk_train.jsonl');
+      
+      const trainingData = await this.client.files.upload({
         file: {
-            fileName: "validation_file.jsonl",
-            content: validation_file,
+          fileName: "training_file.jsonl",
+          content: trainingFile,
         }
-    });
-    
-    //console.log('Training file ID:', training_data.id);
-    console.log('Validation file ID:', validation_data.id);
-    
-    return {validation_data };
-}
+      });
+      
+      return trainingData.id;
+    } catch (error) {
+      throw new Error(`Failed to upload training file: ${error.message}`);
+    }
+  }
 
-// Call the function
-uploadFiles();
-
-
-/*
-
-function uploadFiles(file: string) {
+  private parseJsonlFile(filePath: string): any[] {
     const rows = [];
-    
-    const fileContent = fs.readFileSync(file, 'utf8');
+    const fileContent = fs.readFileSync(filePath, 'utf8');
     const lines = fileContent.split('\n');
     
     for (const line of lines) {
-        if (line.trim() === '') continue;
-        try {
-            const user = JSON.parse(line);
-            rows.push(user);
-        } catch (error) {
-            console.error(`Error parsing line: "${line}"`, error);
-        }
+      if (line.trim() === '') continue;
+      try {
+        const parsedLine = JSON.parse(line);
+        rows.push(parsedLine);
+      } catch (error) {
+        throw new Error(`Error parsing line in ${filePath}: ${error.message}`);
+      }
     }
     
     return rows;
-}
+  }
 
-
-
-
-
-
-
-// Call the function
-//const ultrachat_chunk_eval = uploadFiles();
-
-// First upload the files to get file IDs
-async function createFineTuningJob() {
+  async createFineTuningJob(config: FineTuningJobConfig): Promise<any> {
     try {
-        // Upload training file to Mistral
-        const trainingFilePath = '../data/ultrachat_chunk_train.jsonl';
-        const uploadedTrainingFile = await uploadFiles(trainingFilePath)
+      const jobConfig: any = {
+        model: this.model,
+        trainingFiles: config.trainingFiles,
+        hyperparameters: {
+          trainingSteps: 10,
+          learningRate: 0.0001,
+          ...config.hyperparameters,
+        },
+      };
 
-        
-        // Upload validation file to Mistral
-        const validationFilePath = '../data/ultrachat_chunk_eval.jsonl';
-        const uploadedValidationFile = await uploadFiles(validationFilePath);
-        
-        console.log('Training file ID:', uploadedTrainingFile[0].prompt_id, uploadedTrainingFile[1].prompt_id);
-        console.log('Validation file ID:', uploadedValidationFile[2].prompt_id, uploadedValidationFile[3].prompt_id);
-        
-        // Create fine-tuning job with actual file IDs
-        const createdJob = await client.fineTuning.jobs.create({
-            model: model || 'mistral-large-latest',
-            trainingFiles: [uploadedTrainingFile[0].prompt_id, uploadedTrainingFile[1].prompt_id],
-            // validationFiles: [uploadedValidationFile[2].prompt_id, uploadedValidationFile[3].prompt_id],
-            hyperparameters: {
-                trainingSteps: 10,
-                learningRate: 0.0001,
-            },
-        });
-        
-        console.log('Fine-tuning job created:', createdJob);
-        return createdJob;
+      if (config.validationFiles && config.validationFiles.length > 0) {
+        jobConfig.validationFiles = config.validationFiles;
+      }
+
+      const createdJob = await this.client.fineTuning.jobs.create(jobConfig);
+      return createdJob;
     } catch (error) {
-        console.error('Error creating fine-tuning job:', error);
+      throw new Error(`Failed to create fine-tuning job: ${error.message}`);
     }
+  }
+
+  async getFineTuningJob(jobId: string): Promise<any> {
+    try {
+      return await this.client.fineTuning.jobs.retrieve(jobId);
+    } catch (error) {
+      throw new Error(`Failed to retrieve fine-tuning job ${jobId}: ${error.message}`);
+    }
+  }
+
+  async listFineTuningJobs(): Promise<any> {
+    try {
+      return await this.client.fineTuning.jobs.list();
+    } catch (error) {
+      throw new Error(`Failed to list fine-tuning jobs: ${error.message}`);
+    }
+  }
 }
-
-// Call the function
-createFineTuningJob();
-
-
-//
-// 
-// 
-// 
-// 
-// console.log(ultrachat_chunk_eval[0]);
-*/
