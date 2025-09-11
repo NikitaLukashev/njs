@@ -28,38 +28,38 @@ export class FinetuningService {
     this.client = new Mistral({ apiKey });
   }
 
-  async uploadValidationFile(): Promise<string> {
-    try {
-      const validationFile = fs.readFileSync('../data/ultrachat_chunk_eval.jsonl');
-      
-      const validationData = await this.client.files.upload({
-        file: {
-          fileName: "validation_file.jsonl",
-          content: validationFile,
-        }
-      });
-      
-      return validationData.id;
-    } catch (error) {
-      throw new Error(`Failed to upload validation file: ${error.message}`);
+  async uploadValidationFile(filePath: string = '../data/ultrachat_chunk_eval.jsonl'): Promise<string> {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Validation file not found at path: ${filePath}`);
     }
+
+    const validationFile = fs.readFileSync(filePath);
+    
+    const validationData = await this.client.files.upload({
+      file: {
+        fileName: "validation_file.jsonl",
+        content: validationFile,
+      }
+    });
+    
+    return validationData.id;
   }
 
-  async uploadTrainingFile(): Promise<string> {
-    try {
-      const trainingFile = fs.readFileSync('../data/ultrachat_chunk_train.jsonl');
-      
-      const trainingData = await this.client.files.upload({
-        file: {
-          fileName: "training_file.jsonl",
-          content: trainingFile,
-        }
-      });
-      
-      return trainingData.id;
-    } catch (error) {
-      throw new Error(`Failed to upload training file: ${error.message}`);
+  async uploadTrainingFile(filePath: string = '../data/ultrachat_chunk_train.jsonl'): Promise<string> {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Training file not found at path: ${filePath}`);
     }
+
+    const trainingFile = fs.readFileSync(filePath);
+    
+    const trainingData = await this.client.files.upload({
+      file: {
+        fileName: "training_file.jsonl",
+        content: trainingFile,
+      }
+    });
+    
+    return trainingData.id;
   }
 
   private parseJsonlFile(filePath: string): any[] {
