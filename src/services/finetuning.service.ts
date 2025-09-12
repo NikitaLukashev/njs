@@ -17,6 +17,33 @@ export interface UploadedFile {
   fileName: string;
 }
 
+export interface FineTuningJob {
+  id: string;
+  model: string;
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  trainingFiles: string[];
+  validationFiles?: string[];
+  hyperparameters: {
+    trainingSteps: number;
+    learningRate: number;
+  };
+  createdAt: string;
+  finishedAt?: string;
+  error?: {
+    message: string;
+    code: string;
+  };
+}
+
+export interface MistralFileUpload {
+  id: string;
+  object: string;
+  bytes: number;
+  created_at: number;
+  filename: string;
+  purpose: string;
+}
+
 @Injectable()
 export class FinetuningService {
   private readonly client: Mistral;
@@ -80,42 +107,32 @@ export class FinetuningService {
     return rows;
   }
 
-  async createFineTuningJob(config: FineTuningJobConfig): Promise<any> {
-    try {
-      const jobConfig: any = {
-        model: this.model,
-        trainingFiles: config.trainingFiles,
-        hyperparameters: {
-          trainingSteps: 10,
-          learningRate: 0.0001,
-          ...config.hyperparameters,
-        },
-      };
+  async createFineTuningJob(config: FineTuningJobConfig): Promise<FineTuningJob> {
+    const jobConfig: any = {
+      model: this.model,
+      trainingFiles: config.trainingFiles,
+      hyperparameters: {
+        trainingSteps: 10,
+        learningRate: 0.0001,
+        ...config.hyperparameters,
+      },
+    };
 
-      if (config.validationFiles && config.validationFiles.length > 0) {
-        jobConfig.validationFiles = config.validationFiles;
-      }
-
-      const createdJob = await this.client.fineTuning.jobs.create(jobConfig);
-      return createdJob;
-    } catch (error) {
-      throw new Error(`Failed to create fine-tuning job: ${error.message}`);
+    if (config.validationFiles && config.validationFiles.length > 0) {
+      jobConfig.validationFiles = config.validationFiles;
     }
+
+    const createdJob = await this.client.fineTuning.jobs.create(jobConfig);
+    return createdJob as FineTuningJob;
   }
 
-  async getFineTuningJob(jobId: string): Promise<any> {
-    try {
-      return await this.client.fineTuning.jobs.retrieve(jobId);
-    } catch (error) {
-      throw new Error(`Failed to retrieve fine-tuning job ${jobId}: ${error.message}`);
-    }
+  async getFineTuningJob(jobId: string): Promise<FineTuningJob> {
+    const job = await this.client.fineTuning.jobs.retrieve(jobId);
+    return job as FineTuningJob;
   }
 
-  async listFineTuningJobs(): Promise<any> {
-    try {
-      return await this.client.fineTuning.jobs.list();
-    } catch (error) {
-      throw new Error(`Failed to list fine-tuning jobs: ${error.message}`);
-    }
+  async listFineTuningJobs(): Promise<FineTuningJob[]> {
+    const jobs = await this.client.fineTuning.jobs.list();
+    return jobs.data as FineTuningJob[];
   }
 }
