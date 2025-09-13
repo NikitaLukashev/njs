@@ -50,7 +50,7 @@ export class FinetuningService {
   private readonly model: string;
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('MISTRAL_API_KEY') || '16CPDv68H5Yu45oifrm4zMKve6a1T9uw';
+    const apiKey = this.configService.get<string>('MISTRAL_API_KEY');
     this.model = this.configService.get<string>('MISTRAL_MODEL') || 'mistral-large-latest';
     this.client = new Mistral({ apiKey });
   }
